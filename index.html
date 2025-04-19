@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Who Broke My Trunk?</title>
+  <style>
+    body { margin:0; overflow:hidden; background:#a8d0e6; }
+    canvas { display:block; margin:auto; background:#fefefe; border:2px solid #333; }
+    #gameOver { position:absolute; top:0; left:0; width:100%; height:100%; display:none;
+      background:rgba(0,0,0,0.7); color:white; font:24px sans-serif;
+      justify-content:center; align-items:center; flex-direction:column;
+    }
+    #gameOver button { margin-top:20px; padding:10px 20px; font:18px sans-serif; }
+  </style>
+</head>
+<body>
+  <canvas id="c" width="600" height="800"></canvas>
+  <div id="gameOver">
+    <div id="finalScore"></div>
+    <button id="restart">Restart</button>
+  </div>
+  <script>
+  const ctx = document.getElementById('c').getContext('2d');
+  const W = ctx.canvas.width, H = ctx.canvas.height;
+  const blockW = 100, blockH = 100;
+  const trunkY = H - blockH;
+  const images = ['rhino','turtle','rabbit'].reduce((o,k)=>(o[k]=new Image(),o),{});
+  images.rhino.src='rhino.png'; images.turtle.src='turtle.png'; images.rabbit.src='rabbit.png';
+  const geraldImage = new Image();
+  geraldImage.src = 'gerald.png';
+  
+  let geraldX = (W-blockW)/2, speed=0, stack=[]; let lives=3, score=0, gameOver=false;
+  let current = null;
+  document.addEventListener('keydown', e=>{
+    if(e.key==='ArrowLeft') speed=-8; if(e.key==='ArrowRight') speed=8;
+  });
+  document.addEventListener('keyup', e=>{ if(e.key==='ArrowLeft'||e.key==='ArrowRight') speed=0; });
+
+  function spawn(){
+    const types = ['rhino','turtle','rabbit'];
+    const type = types[Math.floor(Math.random()*types.length)];
+    const topX = stack.length
+      ? geraldX + stack[stack.length-1].dx
+      : geraldX;
+    current = { x: topX, y:-blockH, type, img:images[type] };
+  }
+
+  function update(){
+    if(gameOver) return;
+    geraldX = Math.min(Math.max(geraldX+speed,0), W-blockW);
+    if(current){
+      current.y += 4;
+      const targetY = trunkY - blockH * stack.length;
+      // check landing: bottom of block meets targetY
+      if (current.y + blockH >= targetY) {
+        // check alignment
+        if(Math.abs(current.x - (stack.length?geraldX + stack[stack.length-1].dx:geraldX)) < blockW/2){
+          // caught
+          // snap so bottom of block rests on targetY
+          current.y = targetY - blockH;
+          stack.push({ img: current.img, dx: current.x - geraldX });
+          score = stack.length;
+          spawn();
+        } else {
+          // miss
+          lives--;
+          if(lives>0) spawn(); else end();
+        }
+      }
+    }
+  }
+
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    // draw stack
+    stack.forEach((b,i)=>{
+      ctx.drawImage(b.img, geraldX + b.dx, trunkY - blockH*(i+1), blockW, blockH);
+    });
+    // draw current falling
+    if(current && current.img.complete){
+      ctx.drawImage(current.img, current.x, current.y, blockW, blockH);
+    }
+    // draw Gerald
+    if (geraldImage.complete) {
+      ctx.drawImage(geraldImage, geraldX, trunkY, blockW, blockH);
+    } else {
+      ctx.fillStyle='gray';
+      ctx.fillRect(geraldX, trunkY, blockW, blockH);
+    }
+    // UI
+    ctx.fillStyle='black'; ctx.font='20px sans-serif';
+    ctx.fillText('Lives:'+lives,10,30); ctx.fillText('Score:'+score,10,60);
+  }
+
+  function loop(){
+    update(); draw();
+    if(!gameOver) requestAnimationFrame(loop);
+  }
+  function end(){
+    gameOver=true;
+    document.getElementById('finalScore').innerText='Final Score: '+score;
+    document.getElementById('gameOver').style.display='flex';
+  }
+  document.getElementById('restart').onclick=()=>{
+    stack=[]; lives=3; score=0; gameOver=false; spawn(); loop();
+    document.getElementById('gameOver').style.display='none';
+  };
+
+  // start
+  spawn(); loop();
+  </script>
+</body>
+</html>
