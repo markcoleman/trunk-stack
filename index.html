@@ -31,6 +31,9 @@
   
   let geraldX = (W-blockW)/2, speed=0, stack=[]; let lives=3, score=0, gameOver=false;
   let current = null;
+  let cameraY = 0;
+  const panThreshold = H / 2;
+
   document.addEventListener('keydown', e=>{
     if(e.key==='ArrowLeft') speed=-8; if(e.key==='ArrowRight') speed=8;
   });
@@ -39,10 +42,8 @@
   function spawn(){
     const types = ['rhino','turtle','rabbit'];
     const type = types[Math.floor(Math.random()*types.length)];
-    const topX = stack.length
-      ? geraldX + stack[stack.length-1].dx
-      : geraldX;
-    current = { x: topX, y:-blockH, type, img:images[type] };
+    const randomX = Math.random() * (W - blockW);
+    current = { x: randomX, y: cameraY - blockH, type, img:images[type] };
   }
 
   function update(){
@@ -68,10 +69,17 @@
         }
       }
     }
+    // Auto-pan upward when the top of the stack goes above threshold
+    const worldTopY = trunkY - blockH * stack.length;
+    if (worldTopY - cameraY < panThreshold) {
+      cameraY = worldTopY - panThreshold;
+    }
   }
 
   function draw(){
     ctx.clearRect(0,0,W,H);
+    ctx.save();
+    ctx.translate(0, -cameraY);
     // draw stack
     stack.forEach((b,i)=>{
       ctx.drawImage(b.img, geraldX + b.dx, trunkY - blockH*(i+1), blockW, blockH);
@@ -87,6 +95,7 @@
       ctx.fillStyle='gray';
       ctx.fillRect(geraldX, trunkY, blockW, blockH);
     }
+    ctx.restore();
     // UI
     ctx.fillStyle='black'; ctx.font='20px sans-serif';
     ctx.fillText('Lives:'+lives,10,30); ctx.fillText('Score:'+score,10,60);
