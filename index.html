@@ -24,15 +24,26 @@
   const W = ctx.canvas.width, H = ctx.canvas.height;
   const blockW = 100, blockH = 100;
   const trunkY = H - blockH;
-  const images = ['rhino','turtle','rabbit'].reduce((o,k)=>(o[k]=new Image(),o),{});
+  const images = ['rhino','turtle','rabbit','flamingo','hippo','penguin']
+    .reduce((o,k)=>(o[k]=new Image(),o),{});
   images.rhino.src='rhino.png'; images.turtle.src='turtle.png'; images.rabbit.src='rabbit.png';
+  images.flamingo.src='flamingo.png'; images.hippo.src='hippo.png'; images.penguin.src='penguin.png';
   const geraldImage = new Image();
   geraldImage.src = 'gerald.png';
+  // Background image
+  const bgImage = new Image();
+  bgImage.src = 'background.png';
+  // Parallax scroll factor for the background (0=no scroll, 1=sync with camera)
+  const parallaxFactor = 0.5;
   
   let geraldX = (W-blockW)/2, speed=0, stack=[]; let lives=3, score=0, gameOver=false;
   let current = null;
   let cameraY = 0;
-  const panThreshold = H / 2;
+
+  let endAnimating = false;
+  let endAnimProgress = 0;
+  const endAnimDuration = 120; // frames for the scroll-down
+  let initialCameraY = 0;
 
   document.addEventListener('keydown', e=>{
     if(e.key==='ArrowLeft') speed=-8; if(e.key==='ArrowRight') speed=8;
@@ -40,10 +51,11 @@
   document.addEventListener('keyup', e=>{ if(e.key==='ArrowLeft'||e.key==='ArrowRight') speed=0; });
 
   function spawn(){
-    const types = ['rhino','turtle','rabbit'];
+    const types = ['rhino','turtle','rabbit','flamingo','hippo','penguin'];
     const type = types[Math.floor(Math.random()*types.length)];
     const randomX = Math.random() * (W - blockW);
-    current = { x: randomX, y: cameraY - blockH, type, img:images[type] };
+    // Always start new animals just above the top edge of the screen
+    current = { x: randomX, y: -blockH - cameraY, type, img:images[type] };
   }
 
   function update(){
@@ -69,18 +81,31 @@
         }
       }
     }
-    // Auto-pan upward when the top of the stack goes above threshold
-    const worldTopY = trunkY - blockH * stack.length;
-    if (worldTopY - cameraY < panThreshold) {
-      cameraY = worldTopY - panThreshold;
-    }
+    // Pan camera according to stack height
+    cameraY = blockH * stack.length;
   }
 
   function draw(){
     ctx.clearRect(0,0,W,H);
+    // Draw scrolling background slice anchored to image bottom
+    if (bgImage.complete) {
+      // Compute source Y so bottom of image aligns initially,
+      // then scroll up by cameraY*parallaxFactor
+      let srcY = Math.floor((bgImage.height - H) - cameraY * parallaxFactor);
+      // Clamp within valid range
+      srcY = Math.max(0, Math.min(srcY, bgImage.height - H));
+      // Draw the H-high slice from srcY
+      ctx.drawImage(
+        bgImage,
+        0, srcY,
+        bgImage.width, H,
+        0, 0,
+        W, H
+      );
+    }
     ctx.save();
-    ctx.translate(0, -cameraY);
-    // draw stack
+    ctx.translate(0, cameraY);
+    // draw full stack of animals
     stack.forEach((b,i)=>{
       ctx.drawImage(b.img, geraldX + b.dx, trunkY - blockH*(i+1), blockW, blockH);
     });
@@ -102,13 +127,32 @@
   }
 
   function loop(){
+    if (endAnimating) {
+      endAnimProgress++;
+      // animate cameraY from initialCameraY down to 0
+      cameraY = initialCameraY * (1 - endAnimProgress / endAnimDuration);
+      if (endAnimProgress >= endAnimDuration) {
+        endAnimating = false;
+        cameraY = 0;
+        // show overlay after animation
+        document.getElementById('finalScore').innerText = 'Final Score: ' + score;
+        document.getElementById('gameOver').style.display = 'flex';
+        return;
+      }
+      // draw current frame, then queue next
+      draw();
+      requestAnimationFrame(loop);
+      return;
+    }
     update(); draw();
     if(!gameOver) requestAnimationFrame(loop);
   }
   function end(){
-    gameOver=true;
-    document.getElementById('finalScore').innerText='Final Score: '+score;
-    document.getElementById('gameOver').style.display='flex';
+    gameOver = true;
+    // Prepare scroll-down animation
+    endAnimating = true;
+    endAnimProgress = 0;
+    initialCameraY = cameraY;
   }
   document.getElementById('restart').onclick=()=>{
     stack=[]; lives=3; score=0; gameOver=false; spawn(); loop();
